@@ -18,5 +18,5 @@ pymicro-vad>=1.0.1
 pyspeex-noise>=1.0.2
 
 openai==1.59.8
-voluptuous_openapi==0.0.5
+voluptuous_openapi==0.0.6
 audioop-lts>=0.2.1
