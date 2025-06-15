@@ -4,6 +4,8 @@ from typing import Generator
 from unittest.mock import AsyncMock, patch, Mock
 
 from freezegun import freeze_time
+from openai.types.chat import ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice, ChoiceDelta
 import pytest
 from syrupy.assertion import SnapshotAssertion
 from openai.types.chat.chat_completion import ChatCompletion, Choice
@@ -15,6 +17,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
 from openai.types.completion_usage import CompletionUsage
 
 from homeassistant.const import CONF_LLM_HASS_API
+from custom_components.vicuna_conversation.const import CONF_STREAMING
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.helpers import intent
 from homeassistant.components import conversation
@@ -332,6 +335,91 @@ async def test_assist_api_tools_conversion(
 
     tools = mock_create.mock_calls[0][2]["tools"]
     assert tools
+
+
+async def test_streaming_response(
+    hass: HomeAssistant,
+    mock_chat_log: MockChatLog,
+    mock_config_entry: MockConfigEntry,
+) -> None:
+    """Test streaming response from the assistant."""
+    # Enable streaming in config
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            **mock_config_entry.options,
+            CONF_STREAMING: True,
+        },
+    )
+    await hass.async_block_till_done()
+
+    # Create mock streaming response
+    async def mock_stream():
+        # Use model_construct to bypass validation for non-final chunks
+        yield ChatCompletionChunk.model_construct(
+            id="chatcmpl-1234567890ABCDEFGHIJKLMNOPQRS",
+            choices=[
+                ChunkChoice.model_construct(
+                    index=0,
+                    delta=ChoiceDelta(role="assistant", content="Hello"),
+                    finish_reason=None,
+                )
+            ],
+            created=1700000000,
+            model="gpt-3.5-turbo-0613",
+            object="chat.completion.chunk",
+        )
+        yield ChatCompletionChunk.model_construct(
+            id="chatcmpl-1234567890ABCDEFGHIJKLMNOPQRS",
+            choices=[
+                ChunkChoice.model_construct(
+                    index=0,
+                    delta=ChoiceDelta(content=" world"),
+                    finish_reason=None,
+                )
+            ],
+            created=1700000000,
+            model="gpt-3.5-turbo-0613",
+            object="chat.completion.chunk",
+        )
+        # Final chunk uses regular constructor
+        yield ChatCompletionChunk(
+            id="chatcmpl-1234567890ABCDEFGHIJKLMNOPQRS",
+            choices=[
+                ChunkChoice(
+                    index=0,
+                    delta=ChoiceDelta(),
+                    finish_reason="stop",
+                )
+            ],
+            created=1700000000,
+            model="gpt-3.5-turbo-0613",
+            object="chat.completion.chunk",
+        )
+
+    with patch(
+        "openai.resources.chat.completions.AsyncCompletions.create",
+        new_callable=AsyncMock,
+        return_value=mock_stream(),
+    ):
+        result = await conversation.async_converse(
+            hass,
+            "hello",
+            mock_chat_log.conversation_id,
+            Context(),
+            agent_id="conversation.mock_title",
+        )
+
+    assert result.response.response_type == intent.IntentResponseType.ACTION_DONE
+    assert result.response.speech["plain"]["speech"] == "Hello world"
+
+    # Direct assertions instead of snapshot
+    content = mock_chat_log.content[1:]
+    assert len(content) == 2
+    assert content[0].role == "user"
+    assert content[0].content == "hello"
+    assert content[1].role == "assistant"
+    assert content[1].content == "Hello world"
 
 
 async def test_unknown_hass_api(

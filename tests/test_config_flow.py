@@ -21,6 +21,7 @@ from custom_components.vicuna_conversation.const import (
     CONF_RECOMMENDED,
     CONF_TEMPERATURE,
     CONF_TOP_P,
+    CONF_STREAMING,
     DOMAIN,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
@@ -39,14 +40,21 @@ async def test_config_flow(
     assert result.get("type") is FlowResultType.FORM
     assert result.get("errors") is None
 
-    with patch(
-        f"custom_components.{DOMAIN}.async_setup_entry", return_value=True
-    ) as mock_setup:
+    with (
+        patch(
+            f"custom_components.{DOMAIN}.config_flow.get_streaming_support",
+            return_value=False,
+        ),
+        patch(
+            f"custom_components.{DOMAIN}.async_setup_entry", return_value=True
+        ) as mock_setup,
+    ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             {
                 "api_key": "sk-0000000000000000000",
                 "base_url": "http://llama-cublas.llama:8000/v1",
+                "chat_model": RECOMMENDED_CHAT_MODEL,
             },
         )
         await hass.async_block_till_done()
@@ -56,8 +64,12 @@ async def test_config_flow(
     assert result.get("data") == {
         "api_key": "sk-0000000000000000000",
         "base_url": "http://llama-cublas.llama:8000/v1",
+        "chat_model": RECOMMENDED_CHAT_MODEL,
     }
-    assert result["options"] == RECOMMENDED_OPTIONS
+    expected_options = RECOMMENDED_OPTIONS.copy()
+    expected_options[CONF_CHAT_MODEL] = RECOMMENDED_CHAT_MODEL
+    expected_options[CONF_STREAMING] = False
+    assert result["options"] == expected_options
     assert len(mock_setup.mock_calls) == 1
 
 
@@ -66,9 +78,13 @@ async def test_options(
     mock_config_entry: MockConfigEntry,
 ) -> None:
     """Test the options form."""
-    options_flow = await hass.config_entries.options.async_init(
-        mock_config_entry.entry_id
-    )
+    with patch(
+        "custom_components.vicuna_conversation.config_flow.get_streaming_support",
+        return_value=False,
+    ):
+        options_flow = await hass.config_entries.options.async_init(
+            mock_config_entry.entry_id
+        )
     options = await hass.config_entries.options.async_configure(
         options_flow["flow_id"],
         {
@@ -104,6 +120,7 @@ async def test_options(
                 CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
                 CONF_TOP_P: RECOMMENDED_TOP_P,
                 CONF_MAX_TOKENS: RECOMMENDED_MAX_TOKENS,
+                CONF_STREAMING: False,
             },
         ),
         (
@@ -124,6 +141,8 @@ async def test_options(
                 CONF_RECOMMENDED: True,
                 CONF_LLM_HASS_API: "assist",
                 CONF_PROMPT: "",
+                CONF_CHAT_MODEL: RECOMMENDED_CHAT_MODEL,
+                CONF_STREAMING: False,
             },
         ),
     ],
@@ -140,18 +159,22 @@ async def test_options_switching(
     options_flow = await hass.config_entries.options.async_init(
         mock_config_entry.entry_id
     )
-    if current_options.get(CONF_RECOMMENDED) != new_options.get(CONF_RECOMMENDED):
-        options_flow = await hass.config_entries.options.async_configure(
+    with patch(
+        "custom_components.vicuna_conversation.config_flow.get_streaming_support",
+        return_value=False,
+    ):
+        if current_options.get(CONF_RECOMMENDED) != new_options.get(CONF_RECOMMENDED):
+            options_flow = await hass.config_entries.options.async_configure(
+                options_flow["flow_id"],
+                {
+                    **current_options,
+                    CONF_RECOMMENDED: new_options[CONF_RECOMMENDED],
+                },
+            )
+        options = await hass.config_entries.options.async_configure(
             options_flow["flow_id"],
-            {
-                **current_options,
-                CONF_RECOMMENDED: new_options[CONF_RECOMMENDED],
-            },
+            new_options,
         )
-    options = await hass.config_entries.options.async_configure(
-        options_flow["flow_id"],
-        new_options,
-    )
     await hass.async_block_till_done()
     assert options["type"] is FlowResultType.CREATE_ENTRY
     assert options["data"] == expected_options

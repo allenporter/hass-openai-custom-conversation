@@ -3,11 +3,13 @@
 from collections.abc import Callable, AsyncGenerator
 import json
 import logging
-from typing import Literal, Any
+from typing import Literal, Any, cast
 
 import openai
+from openai._streaming import AsyncStream
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
+    ChatCompletionChunk,
     ChatCompletionMessageParam,
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessage,
@@ -35,6 +37,7 @@ from .const import (
     CONF_PROMPT,
     CONF_TEMPERATURE,
     CONF_TOP_P,
+    CONF_STREAMING,
     DOMAIN,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
@@ -145,6 +148,116 @@ async def _transform_response(
     yield data
 
 
+def _convert_content_to_param(
+    content: conversation.Content,
+) -> ChatCompletionMessageParam:
+    """Convert any native chat message for this agent to the native format."""
+    if content.role == "tool_result":
+        assert type(content) is conversation.ToolResultContent
+        return ChatCompletionToolMessageParam(
+            role="tool",
+            tool_call_id=content.tool_call_id,
+            content=json.dumps(content.tool_result),
+        )
+    if content.role != "assistant" or not content.tool_calls:
+        role: Literal["system", "user", "assistant", "developer"] = content.role
+        if role == "system":
+            role = "developer"
+        return cast(
+            ChatCompletionMessageParam,
+            {"role": content.role, "content": content.content},
+        )
+
+    # Handle the Assistant content including tool calls.
+    assert type(content) is conversation.AssistantContent
+    return ChatCompletionAssistantMessageParam(
+        role="assistant",
+        content=content.content,
+        tool_calls=[
+            ChatCompletionMessageToolCallParam(
+                id=tool_call.id,
+                function=Function(
+                    arguments=json.dumps(tool_call.tool_args),
+                    name=tool_call.tool_name,
+                ),
+                type="function",
+            )
+            for tool_call in content.tool_calls
+        ],
+    )
+
+
+async def _transform_stream(
+    result: AsyncStream[ChatCompletionChunk],
+) -> AsyncGenerator[conversation.AssistantContentDeltaDict]:
+    """Transform an OpenAI delta stream into HA format."""
+    current_tool_call: dict | None = None
+
+    async for chunk in result:
+        LOGGER.debug("Received chunk: %s", chunk)
+        choice = chunk.choices[0]
+
+        if choice.finish_reason:
+            if current_tool_call:
+                tool_args = []
+                if current_tool_call["tool_args"]:
+                    tool_args = json.loads(current_tool_call["tool_args"])
+                yield {
+                    "tool_calls": [
+                        llm.ToolInput(
+                            id=current_tool_call["id"],
+                            tool_name=current_tool_call["tool_name"],
+                            tool_args=tool_args,
+                        )
+                    ]
+                }
+
+            break
+
+        delta = chunk.choices[0].delta
+
+        # We can yield delta messages not continuing or starting tool calls
+        if current_tool_call is None and not delta.tool_calls:
+            yield {  # type: ignore[misc]
+                key: value
+                for key in ("role", "content")
+                if (value := getattr(delta, key)) is not None
+            }
+            continue
+
+        # When doing tool calls, we should always have a tool call
+        # object or we have gotten stopped above with a finish_reason set.
+        if (
+            not delta.tool_calls
+            or not (delta_tool_call := delta.tool_calls[0])
+            or not delta_tool_call.function
+        ):
+            continue
+
+        if current_tool_call and delta_tool_call.index == current_tool_call["index"]:
+            current_tool_call["tool_args"] += delta_tool_call.function.arguments or ""
+            continue
+
+        # We got tool call with new index, so we need to yield the previous
+        if current_tool_call:
+            yield {
+                "tool_calls": [
+                    llm.ToolInput(
+                        id=current_tool_call["id"],
+                        tool_name=current_tool_call["tool_name"],
+                        tool_args=json.loads(current_tool_call["tool_args"]),
+                    )
+                ]
+            }
+
+        current_tool_call = {
+            "index": delta_tool_call.index,
+            "id": delta_tool_call.id,
+            "tool_name": delta_tool_call.function.name,
+            "tool_args": delta_tool_call.function.arguments or "",
+        }
+
+
 class OpenAIConversationEntity(
     conversation.ConversationEntity, conversation.AbstractConversationAgent
 ):
@@ -239,18 +352,29 @@ class OpenAIConversationEntity(
                     top_p=options.get(CONF_TOP_P, RECOMMENDED_TOP_P),
                     temperature=options.get(CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE),
                     user=chat_log.conversation_id,
+                    stream=options.get(CONF_STREAMING),
                 )
             except openai.OpenAIError as err:
-                LOGGER.error("Error talking to OpenAI: %s", err)
-                raise HomeAssistantError("Error talking to OpenAI") from err
+                LOGGER.error("Error talking to API: %s", err)
+                raise HomeAssistantError("Error talking to API") from err
 
-            response = result.choices[0].message
+            if options.get(CONF_STREAMING):
+                convert_message = _convert_content_to_param
+                convert_stream = _transform_stream
+            else:
+                convert_message = _convert_content_to_chat_message
+                convert_stream = _transform_response
+                result = result.choices[0].message
 
-            async for content in chat_log.async_add_delta_content_stream(
-                user_input.agent_id, _transform_response(response)
-            ):
-                if m := _convert_content_to_chat_message(content):
-                    messages.append(m)
+            messages.extend(
+                [
+                    msg
+                    async for content in chat_log.async_add_delta_content_stream(
+                        user_input.agent_id, convert_stream(result)
+                    )
+                    if (msg := convert_message(content))
+                ]
+            )
 
             if not chat_log.unresponded_tool_results:
                 break

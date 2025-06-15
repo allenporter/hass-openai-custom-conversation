@@ -36,6 +36,7 @@ from .const import (
     CONF_TEMPERATURE,
     CONF_TOP_P,
     CONF_BASE_URL,
+    CONF_STREAMING,
     DEFAULT_API_KEY,
     DEFAULT_BASE_URL,
     DOMAIN,
@@ -50,6 +51,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_API_KEY, default=DEFAULT_API_KEY): str,
         vol.Required(CONF_BASE_URL, default=DEFAULT_BASE_URL): str,
+        vol.Required(CONF_CHAT_MODEL, default=RECOMMENDED_CHAT_MODEL): str,
     }
 )
 
@@ -78,6 +80,44 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
     await hass.async_add_executor_job(list_models)
 
 
+def get_streaming_support(base_url: str, api_key: str, model_name: str) -> bool:
+    """Validate streaming and tool calling support on the remote API.
+
+    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+    """
+
+    client = openai.OpenAI(api_key=api_key, base_url=base_url)
+    client = client.with_options(timeout=10.0)
+    try:
+        stream = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Hello, how are you?"},
+            ],
+            tools=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "test_function",
+                        "description": "Test function.",
+                    },
+                }
+            ],
+            temperature=0,
+            max_tokens=3,  # we don't care about the response
+            stream=True,
+        )
+        for event in stream:
+            if event.choices[0].finish_reason is not None:
+                continue
+    except openai.OpenAIError:
+        # If the model doesn't support streaming, we can just fall back to non-streaming
+        return False
+    # If we get here, we got a full response and streaming is supported
+    return True
+
+
 class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for OpenAI Conversation."""
 
@@ -104,10 +144,17 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
+            config_options = RECOMMENDED_OPTIONS.copy()
+            config_options[CONF_CHAT_MODEL] = user_input[CONF_CHAT_MODEL]
+            config_options[CONF_STREAMING] = get_streaming_support(
+                user_input[CONF_BASE_URL],
+                user_input[CONF_API_KEY],
+                user_input[CONF_CHAT_MODEL],
+            )
             return self.async_create_entry(
                 title="Custom OpenAI",
                 data=user_input,
-                options=RECOMMENDED_OPTIONS,
+                options=config_options,
             )
 
         return self.async_show_form(
@@ -141,6 +188,11 @@ class OpenAIOptionsFlow(OptionsFlow):
             if user_input[CONF_RECOMMENDED] == self.last_rendered_recommended:
                 if user_input[CONF_LLM_HASS_API] == "none":
                     user_input.pop(CONF_LLM_HASS_API)
+                base_url = self.config_entry.data[CONF_BASE_URL]
+                api_key = self.config_entry.data[CONF_API_KEY]
+                user_input[CONF_STREAMING] = get_streaming_support(
+                    base_url, api_key, user_input[CONF_CHAT_MODEL]
+                )
                 return self.async_create_entry(title="", data=user_input)
 
             # Re-render the options again, now with the recommended options shown/hidden
@@ -192,6 +244,11 @@ def openai_config_option_schema(
             description={"suggested_value": options.get(CONF_LLM_HASS_API)},
             default="none",
         ): SelectSelector(SelectSelectorConfig(options=hass_apis)),
+        vol.Optional(
+            CONF_CHAT_MODEL,
+            description={"suggested_value": options.get(CONF_CHAT_MODEL)},
+            default=RECOMMENDED_CHAT_MODEL,
+        ): str,
         vol.Required(
             CONF_RECOMMENDED, default=options.get(CONF_RECOMMENDED, False)
         ): bool,
@@ -202,11 +259,6 @@ def openai_config_option_schema(
 
     schema.update(
         {
-            vol.Optional(
-                CONF_CHAT_MODEL,
-                description={"suggested_value": options.get(CONF_CHAT_MODEL)},
-                default=RECOMMENDED_CHAT_MODEL,
-            ): str,
             vol.Optional(
                 CONF_MAX_TOKENS,
                 description={"suggested_value": options.get(CONF_MAX_TOKENS)},
