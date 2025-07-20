@@ -34,9 +34,6 @@ class OpenAIConversationEntity(
 ):
     """OpenAI conversation agent."""
 
-    _attr_has_entity_name = True
-    _attr_name = None
-
     def __init__(self, entry: ConfigEntry, subentry: ConfigSubentry) -> None:
         """Initialize the agent."""
         super().__init__(entry, subentry)

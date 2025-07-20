@@ -27,6 +27,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.vicuna_conversation.const import (
     DOMAIN,
     DEFAULT_CONVERSATION_NAME,
+    DEFAULT_AI_TASK_NAME,
 )
 
 
@@ -120,13 +121,20 @@ async def mock_config_entry_fixture(
             **config_entry_data,
         },
         version=2,
+        minor_version=2,
         subentries_data=[
             {
                 "data": {**config_entry_options},
                 "subentry_type": "conversation",
                 "title": DEFAULT_CONVERSATION_NAME,
                 "unique_id": None,
-            }
+            },
+            {
+                "data": {**config_entry_options},
+                "subentry_type": "ai_task_data",
+                "title": DEFAULT_AI_TASK_NAME,
+                "unique_id": None,
+            },
         ],
     )
     config_entry.add_to_hass(hass)

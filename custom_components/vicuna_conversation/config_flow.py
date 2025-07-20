@@ -43,6 +43,7 @@ from .const import (
     DEFAULT_API_KEY,
     DEFAULT_BASE_URL,
     DEFAULT_CONVERSATION_NAME,
+    DEFAULT_AI_TASK_NAME,
     DOMAIN,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_CHAT_MODELS,
@@ -74,7 +75,11 @@ STEP_MODELS_DATA_SCHEMA = vol.Schema(
 RECOMMENDED_OPTIONS = {
     CONF_RECOMMENDED: True,
     CONF_LLM_HASS_API: [llm.LLM_API_ASSIST],
-    CONF_PROMPT: llm.DEFAULT_INSTRUCTIONS_PROMPT,
+    CONF_CHAT_MODEL: "gpt-3.5-turbo",
+}
+
+RECOMMENDED_OPTIONS_AI_TASK = {
+    CONF_RECOMMENDED: True,
     CONF_CHAT_MODEL: "gpt-3.5-turbo",
 }
 
@@ -95,6 +100,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for OpenAI Conversation."""
 
     VERSION = 2
+    MINOR_VERSION = 2
 
     data: dict[str, Any] | None = None
     client: openai.AsyncOpenAI | None = None
@@ -147,8 +153,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
                     model=model,
                     stream=True,
                 )
-                options = {
-                    **RECOMMENDED_OPTIONS,
+                base_options = {
                     **user_input,
                     CONF_STREAMING: stream_support,
                 }
@@ -158,10 +163,22 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
                     subentries=[
                         {
                             "subentry_type": "conversation",
-                            "data": options,
+                            "data": {
+                                **RECOMMENDED_OPTIONS,
+                                **base_options,
+                            },
                             "title": DEFAULT_CONVERSATION_NAME,
                             "unique_id": None,
-                        }
+                        },
+                        {
+                            "subentry_type": "ai_task_data",
+                            "data": {
+                                **RECOMMENDED_OPTIONS_AI_TASK,
+                                **base_options,
+                            },
+                            "title": DEFAULT_AI_TASK_NAME,
+                            "unique_id": None,
+                        },
                     ],
                 )
 
@@ -197,7 +214,10 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
         cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration."""
-        return {"conversation": ConversationSubentryFlowHandler}
+        return {
+            "conversation": ConversationSubentryFlowHandler,
+            "ai_task": ConversationSubentryFlowHandler,
+        }
 
 
 class ConversationSubentryFlowHandler(ConfigSubentryFlow):
@@ -227,7 +247,10 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Add a subentry."""
-        self.options = RECOMMENDED_OPTIONS.copy()
+        if self._subentry_type == "ai_task":
+            self.options = RECOMMENDED_OPTIONS_AI_TASK.copy()
+        else:
+            self.options = RECOMMENDED_OPTIONS.copy()
         self.last_rendered_recommended = cast(
             bool, self.options.get(CONF_RECOMMENDED, False)
         )
@@ -280,12 +303,15 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
             options = {
                 CONF_RECOMMENDED: user_input[CONF_RECOMMENDED],
                 CONF_PROMPT: user_input[CONF_PROMPT],
-                CONF_LLM_HASS_API: user_input.get(CONF_LLM_HASS_API, []),
                 CONF_CHAT_MODEL: user_input[CONF_CHAT_MODEL],
             }
+            if self._subentry_type == "conversation":
+                options[CONF_LLM_HASS_API] = user_input.get(CONF_LLM_HASS_API, [])
 
         models = await self._get_models()
-        schema = openai_config_option_schema(self.hass, self._is_new, options, models)
+        schema = openai_config_option_schema(
+            self.hass, self._subentry_type, self._is_new, options, models
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
@@ -296,6 +322,7 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
 
 def openai_config_option_schema(
     hass: HomeAssistant,
+    subentry_type: str,
     is_new: bool,
     options: dict[str, Any],
     models: list[str] | None = None,
@@ -316,7 +343,14 @@ def openai_config_option_schema(
 
     if is_new:
         schema: dict[vol.Required | vol.Optional, Any] = {
-            vol.Required(CONF_NAME, default=DEFAULT_CONVERSATION_NAME): str,
+            vol.Required(
+                CONF_NAME,
+                default=(
+                    DEFAULT_AI_TASK_NAME
+                    if subentry_type == "ai_task"
+                    else DEFAULT_CONVERSATION_NAME
+                ),
+            ): str,
         }
     else:
         schema = {}
@@ -331,11 +365,22 @@ def openai_config_option_schema(
                     )
                 },
             ): TemplateSelector(),
-            vol.Optional(
-                CONF_LLM_HASS_API,
-                # description={"suggested_value": suggested_llm_apis},
-                # default="none",
-            ): SelectSelector(SelectSelectorConfig(options=hass_apis, multiple=True)),
+        }
+    )
+    if subentry_type == "conversation":
+        schema.update(
+            {
+                vol.Optional(
+                    CONF_LLM_HASS_API,
+                    # description={"suggested_value": suggested_llm_apis},
+                    # default="none",
+                ): SelectSelector(
+                    SelectSelectorConfig(options=hass_apis, multiple=True)
+                ),
+            }
+        )
+    schema.update(
+        {
             vol.Optional(
                 CONF_CHAT_MODEL,
                 description={"suggested_value": options.get(CONF_CHAT_MODEL)},

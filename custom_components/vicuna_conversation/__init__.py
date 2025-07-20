@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from types import MappingProxyType
 
 import openai
 
@@ -17,7 +18,12 @@ from homeassistant.helpers import (
 )
 
 from .const import (
+    CONF_CHAT_MODEL,
+    CONF_STREAMING,
+    DEFAULT_AI_TASK_NAME,
     DOMAIN,
+    RECOMMENDED_AI_TASK_OPTIONS,
+    RECOMMENDED_CHAT_MODEL,
 )
 from .openai_client import async_create_client, async_list_models
 
@@ -26,7 +32,7 @@ __all__ = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = (Platform.CONVERSATION,)
+PLATFORMS = (Platform.CONVERSATION, Platform.AI_TASK)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -129,3 +135,46 @@ async def async_migrate_integration(hass: HomeAssistant) -> None:
                 options={},
                 version=2,
             )
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old entry."""
+    if entry.version > 2:
+        # New version, don't know how to migrate
+        _LOGGER.debug("Cannot migrate from version %s", entry.version)
+        return False
+
+    if entry.version == 2 and entry.minor_version >= 2:
+        _LOGGER.debug(
+            "No migration needed for version %s.%s", entry.version, entry.minor_version
+        )
+        return True
+
+    _LOGGER.debug("Migrating from version %s.%s", entry.version, entry.minor_version)
+
+    existing_subentry = next(iter(entry.subentries.values()))
+
+    # The streaming support is not known, but it is not used by the AI task entity.
+    # The config flow will update it when the user reconfigures the entity.
+    hass.config_entries.async_add_subentry(
+        entry,
+        ConfigSubentry(
+            data=MappingProxyType(
+                {
+                    **RECOMMENDED_AI_TASK_OPTIONS,
+                    CONF_CHAT_MODEL: existing_subentry.data[CONF_CHAT_MODEL],
+                    CONF_STREAMING: existing_subentry.data[CONF_STREAMING],
+                }
+            ),
+            subentry_type="ai_task_data",
+            title=DEFAULT_AI_TASK_NAME,
+            unique_id=None,
+        ),
+    )
+    hass.config_entries.async_update_entry(entry, version=2, minor_version=2)
+
+    _LOGGER.debug(
+        "Migration to version %s.%s successful", entry.version, entry.minor_version
+    )
+
+    return True

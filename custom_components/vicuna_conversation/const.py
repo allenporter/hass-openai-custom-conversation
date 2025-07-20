@@ -1,27 +1,35 @@
 """Constants for the Custom OpenAI Conversation integration."""
 
 import logging
+from typing import Final
+
 
 DOMAIN = "vicuna_conversation"
 LOGGER = logging.getLogger(__package__)
 
-CONF_RECOMMENDED = "recommended"
-CONF_PROMPT = "prompt"
 DEFAULT_CONVERSATION_NAME = "Custom OpenAI Conversation"
+
 CONF_CHAT_MODEL = "chat_model"
-RECOMMENDED_CHAT_MODELS = [
-    "gpt-3.5-turbo",
-    "google/gemini-2.5-flash",
-]
-RECOMMENDED_CHAT_MODEL = RECOMMENDED_CHAT_MODELS[0]
 CONF_MAX_TOKENS = "max_tokens"
-RECOMMENDED_MAX_TOKENS = 150
-CONF_TOP_P = "top_p"
-RECOMMENDED_TOP_P = 1.0
+CONF_PROMPT = "prompt"
 CONF_TEMPERATURE = "temperature"
-RECOMMENDED_TEMPERATURE = 1.0
+CONF_TOP_P = "top_p"
+CONF_BASE_URL = "base_url"
+CONF_RECOMMENDED = "recommended"
 CONF_STREAMING = "streaming"
 
-CONF_BASE_URL = "base_url"
+RECOMMENDED_CHAT_MODEL = "gpt-3.5-turbo"
+RECOMMENDED_CHAT_MODELS = [
+    "gpt-3.5-turbo",
+    "gpt-4",
+]
+RECOMMENDED_MAX_TOKENS = 3000
+RECOMMENDED_TEMPERATURE = 0.7
+RECOMMENDED_TOP_P = 1.0
+
+DEFAULT_AI_TASK_NAME: Final = "Custom OpenAI AI Task"
+RECOMMENDED_AI_TASK_OPTIONS = {
+    CONF_RECOMMENDED: True,
+}
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_API_KEY = "sk-0000000000000000000"

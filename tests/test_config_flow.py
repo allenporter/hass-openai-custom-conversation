@@ -44,16 +44,6 @@ def mock_setup(hass: HomeAssistant) -> Generator[Mock]:
         yield mock_setup
 
 
-# @pytest.fixture
-# async def mock_setup_integration(
-#     hass: HomeAssistant, mock_config_entry: MockConfigEntry
-# ) -> None:
-#     """Setup the integration"""
-#     assert await hass.config_entries.async_setup(mock_config_entry.entry_id)
-#     await hass.async_block_till_done()
-#     await hass.async_block_till_done()
-
-
 async def test_config_flow(
     hass: HomeAssistant,
     mock_setup: Mock,
@@ -100,7 +90,17 @@ async def test_config_flow(
             },
             "title": DEFAULT_CONVERSATION_NAME,
             "unique_id": None,
-        }
+        },
+        {
+            "subentry_type": "ai_task_data",
+            "data": {
+                CONF_RECOMMENDED: True,
+                CONF_CHAT_MODEL: "gpt-4",
+                CONF_STREAMING: True,
+            },
+            "title": "Custom OpenAI AI Task",
+            "unique_id": None,
+        },
     ]
 
     assert len(mock_setup.mock_calls) == 1
@@ -201,7 +201,17 @@ async def test_config_flow_no_streaming(
             },
             "title": DEFAULT_CONVERSATION_NAME,
             "unique_id": None,
-        }
+        },
+        {
+            "subentry_type": "ai_task_data",
+            "data": {
+                CONF_RECOMMENDED: True,
+                CONF_CHAT_MODEL: "gpt-4",
+                CONF_STREAMING: False,
+            },
+            "title": "Custom OpenAI AI Task",
+            "unique_id": None,
+        },
     ]
 
     assert len(mock_setup.mock_calls) == 1
@@ -234,10 +244,11 @@ async def test_creating_conversation_subentry(
     assert result2["title"] == "My Custom Agent"
 
     processed_options = RECOMMENDED_OPTIONS.copy()
-    processed_options.update({
-        CONF_PROMPT: processed_options[CONF_PROMPT].strip(),
-        CONF_STREAMING: True,
-    })
+    processed_options.update(
+        {
+            CONF_STREAMING: True,
+        }
+    )
 
     assert result2["data"] == processed_options
 
@@ -430,9 +441,9 @@ async def test_subentry_switching(
     current_options = config_entry_options
     i = 0
     for step_options in new_options:
-        assert subentry_flow["type"] == FlowResultType.FORM, (
-            f"Expected {i} form, got {subentry_flow}"
-        )
+        assert (
+            subentry_flow["type"] == FlowResultType.FORM
+        ), f"Expected {i} form, got {subentry_flow}"
         i += 1
 
         # Test that current options are showed as suggested values:
@@ -446,9 +457,9 @@ async def test_subentry_switching(
                 current_option = current_options[key]
                 if key == CONF_LLM_HASS_API and isinstance(current_option, str):
                     current_option = [current_option]
-                assert key.description["suggested_value"] == current_option, (
-                    f"Expected {key.description['suggested_value']} for {key}, got {current_option}"
-                )
+                assert (
+                    key.description["suggested_value"] == current_option
+                ), f"Expected {key.description['suggested_value']} for {key}, got {current_option}"
 
         # Configure current step
         subentry_flow = await hass.config_entries.subentries.async_configure(

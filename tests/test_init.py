@@ -7,20 +7,21 @@ from unittest.mock import patch, Mock
 
 import pytest
 
-from homeassistant.core import (
-    HomeAssistant,
-)
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
 )
+from homeassistant.config_entries import ConfigEntryState
 
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
 
 from custom_components.vicuna_conversation.const import (
+    DEFAULT_AI_TASK_NAME,
     DOMAIN,
+    RECOMMENDED_AI_TASK_OPTIONS,
 )
 
 
@@ -311,3 +312,78 @@ async def test_migration_from_v1_to_v2_with_same_keys(
         assert dev.config_entries_subentries == {
             mock_config_entry.entry_id: {subentry.subentry_id}
         }
+
+
+@pytest.mark.parametrize(
+    ("data"),
+    [
+        {
+            "chat_model": "gpt-4o-mini",
+            "streaming": True,
+        },
+        {
+            "chat_model": "google/gemini-1.5.flash",
+            "streaming": False,
+        },
+    ],
+)
+async def test_migration_from_v2_1_to_v2_2(
+    hass: HomeAssistant,
+    data: dict[str, Any],
+) -> None:
+    """Test migration from version 2.1 to version 2.2."""
+    # Create a v2.1 config entry with a conversation subentry
+    mock_config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"api_key": "1234", "base_url": "https://api.openai.com/v1"},
+        version=2,
+        minor_version=1,
+        title="Custom OpenAI",
+        subentries_data=[
+            {
+                "data": {
+                    "recommended": True,
+                    "llm_hass_api": ["assist"],
+                    "prompt": "You are a helpful assistant",
+                    **data,
+                },
+                "subentry_type": "conversation",
+                "title": "My Conversation Agent",
+                "unique_id": None,
+            }
+        ],
+    )
+    mock_config_entry.add_to_hass(hass)
+    await hass.async_block_till_done()
+
+    # Set up the component
+    with (
+        patch(
+            "custom_components.vicuna_conversation.openai_client.async_create_client"
+        ),
+        patch(
+            "custom_components.vicuna_conversation.openai_client.async_list_models",
+            return_value=["gpt-4o-mini"],
+        ),
+        patch("homeassistant.config_entries.ConfigEntries.async_forward_entry_setups"),
+    ):
+        await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+
+    # Check migration results
+    assert mock_config_entry.version == 2
+    assert mock_config_entry.minor_version == 2
+    assert len(mock_config_entry.subentries) == 2
+
+    subentries = list(mock_config_entry.subentries.values())
+    ai_task_subentry = next(
+        (s for s in subentries if s.subentry_type == "ai_task_data"), None
+    )
+    assert ai_task_subentry is not None
+    assert ai_task_subentry.title == DEFAULT_AI_TASK_NAME
+    assert ai_task_subentry.data == {
+        **RECOMMENDED_AI_TASK_OPTIONS,
+        **data,
+    }
