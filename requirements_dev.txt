@@ -14,5 +14,5 @@ hassil>=2.0.4
 home-assistant-intents>=2025.3.28
 pyturbojpeg>=1.8.0
 
-openai==1.99.1
+openai==1.101.0
 voluptuous_openapi>=0.0.5
