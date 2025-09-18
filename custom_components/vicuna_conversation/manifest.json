@@ -10,5 +10,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/allenporter/hass-openai-custom-conversation/issues",
   "requirements": ["openai>=1.76.2"],
-  "version": "2.0.1"
+  "version": "2.1.0"
 }
