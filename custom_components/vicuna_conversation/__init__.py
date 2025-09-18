@@ -169,7 +169,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 {
                     **RECOMMENDED_AI_TASK_OPTIONS,
                     CONF_CHAT_MODEL: existing_subentry.data[CONF_CHAT_MODEL],
-                    CONF_STREAMING: existing_subentry.data[CONF_STREAMING],
+                    CONF_STREAMING: existing_subentry.data.get(CONF_STREAMING),
                 }
             ),
             subentry_type="ai_task_data",
