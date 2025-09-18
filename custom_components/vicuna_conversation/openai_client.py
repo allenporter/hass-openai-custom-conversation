@@ -29,6 +29,7 @@ async def async_create_client(
 
     def _create() -> openai.AsyncOpenAI:
         """Get OpenAI client."""
+        _LOGGER.debug("Creating OpenAI client: %s", config_entry_data)
         return openai.AsyncOpenAI(
             api_key=config_entry_data[CONF_API_KEY],
             base_url=config_entry_data[CONF_BASE_URL],

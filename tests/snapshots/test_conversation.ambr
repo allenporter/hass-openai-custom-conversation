@@ -2,15 +2,15 @@
 # name: test_conversation_entity
   list([
     UserContent(role='user', content='hello', attachments=None),
-    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content='Hello, how can I help you?', tool_calls=None),
+    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content='Hello, how can I help you?', thinking_content=None, tool_calls=None, native=None),
   ])
 # ---
 # name: test_function_call[config_entry_options0]
   list([
     UserContent(role='user', content='Please call the test function', attachments=None),
-    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content=None, tool_calls=[ToolInput(tool_name='test_tool', tool_args={'param1': 'call1'}, id='call_call_1')]),
+    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content=None, thinking_content=None, tool_calls=[ToolInput(tool_name='test_tool', tool_args={'param1': 'call1'}, id='call_call_1', external=False)], native=None),
     ToolResultContent(role='tool_result', agent_id='conversation.custom_openai_conversation', tool_call_id='call_call_1', tool_name='test_tool', tool_result='value1'),
-    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content='I have successfully called the function', tool_calls=None),
+    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content='I have successfully called the function', thinking_content=None, tool_calls=None, native=None),
   ])
 # ---
 # name: test_function_exception[-config_entry_options0]

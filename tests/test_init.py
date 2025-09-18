@@ -88,7 +88,7 @@ async def test_migration_from_v1_to_v2(
     assert mock_config_entry.data == {"api_key": "1234"}
     assert mock_config_entry.options == {}
 
-    assert len(mock_config_entry.subentries) == 1
+    assert len(mock_config_entry.subentries) == 2
 
     subentry = next(iter(mock_config_entry.subentries.values()))
     assert subentry.unique_id is None
@@ -198,7 +198,7 @@ async def test_migration_from_v1_to_v2_with_multiple_keys(
     for idx, entry in enumerate(entries):
         assert entry.version == 2
         assert not entry.options
-        assert len(entry.subentries) == 1
+        assert len(entry.subentries) == 2
         subentry = list(entry.subentries.values())[0]
         assert subentry.subentry_type == "conversation"
         assert subentry.data == options
@@ -292,7 +292,7 @@ async def test_migration_from_v1_to_v2_with_same_keys(
     entry = entries[0]
     assert entry.version == 2
     assert not entry.options
-    assert len(entry.subentries) == 2  # Two subentries from the two original entries
+    assert len(entry.subentries) == 3 # Two subentries from the two original entries, 1 AI task
 
     # Check both subentries exist with correct data
     subentries = list(entry.subentries.values())
@@ -300,7 +300,7 @@ async def test_migration_from_v1_to_v2_with_same_keys(
     assert "ChatGPT" in titles
     assert "ChatGPT 2" in titles
 
-    for subentry in subentries:
+    for subentry in subentries[0:2]:  # Only check the two conversation subentries
         assert subentry.subentry_type == "conversation"
         assert subentry.data == options
 
