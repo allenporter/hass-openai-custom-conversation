@@ -292,7 +292,9 @@ async def test_migration_from_v1_to_v2_with_same_keys(
     entry = entries[0]
     assert entry.version == 2
     assert not entry.options
-    assert len(entry.subentries) == 3 # Two subentries from the two original entries, 1 AI task
+    assert (
+        len(entry.subentries) == 3
+    )  # Two subentries from the two original entries, 1 AI task
 
     # Check both subentries exist with correct data
     subentries = list(entry.subentries.values())
