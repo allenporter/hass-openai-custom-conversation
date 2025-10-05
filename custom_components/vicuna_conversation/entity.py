@@ -16,6 +16,7 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletionChunk,
     ChatCompletionMessageParam,
+    ChatCompletionMessageFunctionToolCall,
     ChatCompletionAssistantMessageParam,
     ChatCompletionMessage,
     ChatCompletionMessageToolCallParam,
@@ -146,6 +147,7 @@ async def _transform_response(
                 tool_args=_decode_tool_arguments(tool_call.function.arguments),
             )
             for tool_call in message.tool_calls
+            if isinstance(tool_call, ChatCompletionMessageFunctionToolCall)
         ]
     yield data
 
