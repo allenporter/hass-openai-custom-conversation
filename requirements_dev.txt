@@ -3,10 +3,10 @@ black==25.9.0
 mypy==1.18.2
 pip==25.2
 pre-commit==4.3.0
-ruff==0.13.3
+ruff==0.14.0
 
 # Home Assistant testing dependencies
-pytest-homeassistant-custom-component==0.13.286
+pytest-homeassistant-custom-component==0.13.287
 syrupy>=4.6.1
 
 # Component dependencies
@@ -14,5 +14,5 @@ hassil>=3.2.0
 home-assistant-intents>=2025.9.3
 pyturbojpeg>=1.8.0
 
-openai==2.1.0
+openai==2.3.0
 voluptuous_openapi>=0.0.5
