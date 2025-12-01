@@ -60,6 +60,10 @@ _TEST_TOOLS = [
         "function": {
             "name": "test_function",
             "description": "Test function.",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            },
         },
     }
 ]
