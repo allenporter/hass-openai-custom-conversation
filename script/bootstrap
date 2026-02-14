@@ -10,11 +10,11 @@ echo "==> Bootstrapping..."
 if command -v uv >/dev/null 2>&1; then
   echo "==> Using uv for synchronization..."
   uv sync --all-extras
-  uv pip install -r requirements_dev.txt
+  uv pip install -r requirements_dev.txt --prerelease=allow
 elif command -v python3 >/dev/null 2>&1; then
   echo "==> Using pip for installation..."
   python3 -m pip install --upgrade pip
-  python3 -m pip install -r requirements_dev.txt
+  python3 -m pip install -r requirements_dev.txt --prerelease=allow
 else
   echo "Aborting: python3 not found."
   exit 1

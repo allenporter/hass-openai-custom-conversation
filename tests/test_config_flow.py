@@ -441,9 +441,9 @@ async def test_subentry_switching(
     current_options = config_entry_options
     i = 0
     for step_options in new_options:
-        assert (
-            subentry_flow["type"] == FlowResultType.FORM
-        ), f"Expected {i} form, got {subentry_flow}"
+        assert subentry_flow["type"] == FlowResultType.FORM, (
+            f"Expected {i} form, got {subentry_flow}"
+        )
         i += 1
 
         # Test that current options are showed as suggested values:
@@ -457,9 +457,9 @@ async def test_subentry_switching(
                 current_option = current_options[key]
                 if key == CONF_LLM_HASS_API and isinstance(current_option, str):
                     current_option = [current_option]
-                assert (
-                    key.description["suggested_value"] == current_option
-                ), f"Expected {key.description['suggested_value']} for {key}, got {current_option}"
+                assert key.description["suggested_value"] == current_option, (
+                    f"Expected {key.description['suggested_value']} for {key}, got {current_option}"
+                )
 
         # Configure current step
         subentry_flow = await hass.config_entries.subentries.async_configure(

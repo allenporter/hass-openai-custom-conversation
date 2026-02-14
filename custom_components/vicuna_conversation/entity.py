@@ -75,7 +75,7 @@ def _format_structured_output(
     structure: vol.Schema, llm_api: llm.APIInstance | None
 ) -> dict[str, Any]:
     """Format structured output specification."""
-    return convert(  # type: ignore[no-any-return]
+    return convert(
         structure, custom_serializer=llm_api.custom_serializer if llm_api else None
     )
 
@@ -163,15 +163,16 @@ def _convert_content_to_param(
             tool_call_id=content.tool_call_id,
             content=json.dumps(content.tool_result),
         )
-    if content.role != "assistant" or not content.tool_calls:
+    if content.role != "assistant" or not content.tool_calls:  # type: ignore[unresolved-attribute]
         role: Literal["system", "user", "assistant", "developer"] = content.role
         if role == "system":
             return ChatCompletionSystemMessageParam(
-                role="system", content=content.content or ""
+                role="system",
+                content=content.content or "",  # type: ignore[unresolved-attribute]
             )
         return cast(
             ChatCompletionMessageParam,
-            {"role": content.role, "content": content.content or ""},
+            {"role": content.role, "content": content.content or ""},  # type: ignore[unresolved-attribute]
         )
 
     # Handle the Assistant content including tool calls.
@@ -222,7 +223,7 @@ async def _transform_stream(
 
         # We can yield delta messages not continuing or starting tool calls
         if current_tool_call is None and not delta.tool_calls:
-            yield {  # type: ignore[misc]
+            yield {
                 key: value
                 for key in ("role", "content")
                 if (value := getattr(delta, key)) is not None
@@ -314,10 +315,10 @@ class CustomOpenAIBaseLLMEntity(Entity):
 
         # Handle attachments by adding them to the last user message
         last_content = chat_log.content[-1]
-        if last_content.role == "user" and last_content.attachments:
+        if last_content.role == "user" and last_content.attachments:  # type: ignore[unresolved-attribute]
             files = await async_prepare_files_for_prompt(
                 self.hass,
-                [a.path for a in last_content.attachments],
+                [a.path for a in last_content.attachments],  # type: ignore[unresolved-attribute]
             )
             # Find the last user message and convert it to multipart content
             for i in range(len(messages) - 1, -1, -1):
@@ -327,7 +328,7 @@ class CustomOpenAIBaseLLMEntity(Entity):
                         # Convert string content to list with text and files
                         messages[i]["content"] = [  # type: ignore[arg-type]
                             {"type": "text", "text": current_content},
-                            *files,  # type: ignore[list-item]
+                            *files,
                         ]
                     break
 

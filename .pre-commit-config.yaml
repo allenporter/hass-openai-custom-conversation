@@ -24,9 +24,10 @@ repos:
     hooks:
       - id: ty
         name: ty check
-        entry: uvx ty check . --ignore unresolved-import
-        language: python
+        entry: uvx ty check .
+        language: system
         pass_filenames: false
+        always_run: true
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:

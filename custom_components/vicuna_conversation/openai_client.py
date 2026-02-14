@@ -60,10 +60,7 @@ _TEST_TOOLS = [
         "function": {
             "name": "test_function",
             "description": "Test function.",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            },
+            "parameters": {"type": "object", "properties": {}},
         },
     }
 ]
@@ -77,10 +74,10 @@ async def async_validate_completions(
 ) -> bool:
     """Validate that we can speak to the model over the completions API."""
     try:
-        result = await client.chat.completions.create(
+        result = await client.chat.completions.create(  # type: ignore[no-matching-overload]
             model=model,
-            messages=_TEST_MESSAGES,  # type: ignore[arg-type]
-            tools=_TEST_TOOLS,  # type: ignore[arg-type]
+            messages=_TEST_MESSAGES,
+            tools=_TEST_TOOLS,
             max_tokens=_TEST_MAX_TOKENS,
             stream=stream,
         )
@@ -91,7 +88,7 @@ async def async_validate_completions(
 
     if stream:
         try:
-            async for event in result:  # type: ignore[union-attr]
+            async for event in result:
                 if event.choices[0].finish_reason is not None:
                     continue
         except openai.OpenAIError as err:
