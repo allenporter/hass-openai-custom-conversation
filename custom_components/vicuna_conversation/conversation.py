@@ -23,7 +23,7 @@ async def async_setup_entry(
             continue
         async_add_entities(
             [OpenAIConversationEntity(config_entry, subentry)],
-            config_subentry_id=subentry.subentry_id,  # type: ignore[call-arg]
+            config_subentry_id=subentry.subentry_id,  # type: ignore[call-arg]  # ty: ignore[unknown-argument]
         )
 
 

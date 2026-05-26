@@ -156,27 +156,25 @@ def _convert_content_to_param(
     content: conversation.Content,
 ) -> ChatCompletionMessageParam:
     """Convert any native chat message for this agent to the native format."""
-    if content.role == "tool_result":
-        assert type(content) is conversation.ToolResultContent
+    if isinstance(content, conversation.ToolResultContent):
         return ChatCompletionToolMessageParam(
             role="tool",
             tool_call_id=content.tool_call_id,
             content=json.dumps(content.tool_result),
         )
-    if content.role != "assistant" or not content.tool_calls:  # type: ignore[unresolved-attribute]
-        role: Literal["system", "user", "assistant", "developer"] = content.role
-        if role == "system":
+    if not isinstance(content, conversation.AssistantContent) or not content.tool_calls:
+        if isinstance(content, conversation.SystemContent):
             return ChatCompletionSystemMessageParam(
                 role="system",
-                content=content.content or "",  # type: ignore[unresolved-attribute]
+                content=content.content or "",
             )
+        # For other content types (like UserContent) or AssistantContent without tool calls
         return cast(
             ChatCompletionMessageParam,
-            {"role": content.role, "content": content.content or ""},  # type: ignore[unresolved-attribute]
+            {"role": content.role, "content": content.content or ""},
         )
 
     # Handle the Assistant content including tool calls.
-    assert type(content) is conversation.AssistantContent
     return ChatCompletionAssistantMessageParam(
         role="assistant",
         content=content.content,
@@ -223,11 +221,14 @@ async def _transform_stream(
 
         # We can yield delta messages not continuing or starting tool calls
         if current_tool_call is None and not delta.tool_calls:
-            yield {
-                key: value
-                for key in ("role", "content")
-                if (value := getattr(delta, key)) is not None
-            }
+            yield cast(
+                conversation.AssistantContentDeltaDict,
+                {
+                    key: value
+                    for key in ("role", "content")
+                    if (value := getattr(delta, key)) is not None
+                },
+            )
             continue
 
         # When doing tool calls, we should always have a tool call
@@ -315,21 +316,28 @@ class CustomOpenAIBaseLLMEntity(Entity):
 
         # Handle attachments by adding them to the last user message
         last_content = chat_log.content[-1]
-        if last_content.role == "user" and last_content.attachments:  # type: ignore[unresolved-attribute]
+        if (
+            isinstance(last_content, conversation.UserContent)
+            and last_content.attachments
+        ):
             files = await async_prepare_files_for_prompt(
                 self.hass,
-                [a.path for a in last_content.attachments],  # type: ignore[unresolved-attribute]
+                [a.path for a in last_content.attachments],
             )
             # Find the last user message and convert it to multipart content
             for i in range(len(messages) - 1, -1, -1):
                 if messages[i]["role"] == "user":
-                    current_content = messages[i]["content"]
+                    user_msg = cast(ChatCompletionUserMessageParam, messages[i])
+                    current_content = user_msg.get("content")
                     if isinstance(current_content, str):
                         # Convert string content to list with text and files
-                        messages[i]["content"] = [  # type: ignore[arg-type]
-                            {"type": "text", "text": current_content},
-                            *files,
-                        ]
+                        user_msg["content"] = cast(
+                            Any,
+                            [
+                                {"type": "text", "text": current_content},
+                                *files,
+                            ],
+                        )
                     break
 
         client = self.entry.runtime_data

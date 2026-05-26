@@ -137,6 +137,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
         """Handle selecting a model."""
         assert self.client is not None
         assert self.models is not None
+        assert self.data is not None
         errors = {}
         if user_input is not None:
             model = user_input[CONF_CHAT_MODEL]
@@ -159,7 +160,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
                 return self.async_create_entry(
                     title="Custom OpenAI",
-                    data=self.data,  # type: ignore[arg-type]
+                    data=self.data,
                     subentries=[
                         {
                             "subentry_type": "conversation",
