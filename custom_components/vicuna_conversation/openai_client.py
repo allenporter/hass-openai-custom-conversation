@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import openai
+from openai._streaming import AsyncStream
+from openai.types.chat import (
+    ChatCompletionChunk,
+    ChatCompletionMessageParam,
+    ChatCompletionToolParam,
+)
 
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -50,11 +56,11 @@ async def async_list_models(client: openai.AsyncOpenAI) -> list[str]:
     return models
 
 
-_TEST_MESSAGES = [
+_TEST_MESSAGES: list[ChatCompletionMessageParam] = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "What is the capital of France?"},
 ]
-_TEST_TOOLS = [
+_TEST_TOOLS: list[ChatCompletionToolParam] = [
     {
         "type": "function",
         "function": {
@@ -74,7 +80,7 @@ async def async_validate_completions(
 ) -> bool:
     """Validate that we can speak to the model over the completions API."""
     try:
-        result = await client.chat.completions.create(  # type: ignore[no-matching-overload]
+        result = await client.chat.completions.create(
             model=model,
             messages=_TEST_MESSAGES,
             tools=_TEST_TOOLS,
@@ -88,7 +94,8 @@ async def async_validate_completions(
 
     if stream:
         try:
-            async for event in result:
+            stream_result = cast(AsyncStream[ChatCompletionChunk], result)
+            async for event in stream_result:
                 if event.choices[0].finish_reason is not None:
                     continue
         except openai.OpenAIError as err:
