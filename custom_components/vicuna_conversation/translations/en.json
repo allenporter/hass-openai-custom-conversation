@@ -1,11 +1,26 @@
 {
   "config": {
+    "abort": {
+      "already_configured": "Service is already configured"
+    },
     "error": {
+      "api_error": "Unexpected error, see error logs",
       "cannot_connect": "Failed to connect",
       "invalid_api_key": "Invalid API key",
+      "invalid_auth": "Invalid API key/authentication",
+      "quota_exceeded": "Your account or API key has insufficient credits.",
+      "timeout": "Connection timed out.",
       "unknown": "Unexpected error, see error logs"
     },
     "step": {
+      "model": {
+        "data": {
+          "chat_model": "Model"
+        },
+        "data_description": {
+          "chat_model": "Select the model to use."
+        }
+      },
       "user": {
         "data": {
           "api_key": "API key",
@@ -15,55 +30,72 @@
           "api_key": "API key for the LLM service.",
           "base_url": "Base URL for the LLM service."
         }
-      },
-      "model": {
-        "data": {
-          "chat_model": "Model"
-        },
-        "data_description": {
-          "chat_model": "Select the model to use."
-        }
       }
-    },
-    "abort": {
-      "already_configured": "Service is already configured"
     }
   },
   "config_subentries": {
     "conversation": {
-      "initiate_flow": {
-        "user": "Add conversation agent",
-        "reconfigure": "Reconfigure conversation agent"
+      "abort": {
+        "cannot_connect": "Failed to connect",
+        "entry_not_loaded": "Cannot add things while the configuration is disabled.",
+        "invalid_auth": "Invalid API key/authentication",
+        "reauth_successful": "Re-authentication was successful",
+        "reconfigure_successful": "Re-configuration was successful"
       },
       "entry_type": "Conversation agent",
+      "initiate_flow": {
+        "reconfigure": "Reconfigure conversation agent",
+        "user": "Add conversation agent"
+      },
       "step": {
         "init": {
           "data": {
+            "chat_model": "Model",
+            "llm_hass_api": "Control Home Assistant",
+            "max_tokens": "Maximum tokens to return in response",
             "name": "[%key:common::config_flow::data::name%]",
             "prompt": "Instructions",
-            "chat_model": "Model",
-            "max_tokens": "Maximum tokens to return in response",
+            "recommended": "Recommended model settings",
             "temperature": "Temperature",
-            "top_p": "Top P",
-            "llm_hass_api": "Control Home Assistant",
-            "recommended": "Recommended model settings"
+            "top_p": "Top P"
           },
           "data_description": {
-            "prompt": "Instruct how the LLM should respond. This can be a template.",
             "chat_model": "Select the model to use.",
-            "max_tokens": "Select the maximum number of tokens to return.",
-            "temperature": "Select the temperature for response variability.",
-            "top_p": "Select the top P value for response diversity.",
             "llm_hass_api": "Select the level of control over Home Assistant.",
-            "recommended": "Select whether to use recommended model settings."
+            "max_tokens": "Select the maximum number of tokens to return.",
+            "prompt": "Instruct how the LLM should respond. This can be a template.",
+            "recommended": "Select whether to use recommended model settings.",
+            "temperature": "Select the temperature for response variability.",
+            "top_p": "Select the top P value for response diversity."
           }
         }
-      },
-      "abort": {
-        "entry_not_loaded": "Cannot add things while the configuration is disabled.",
-        "reconfigure_successful": "Re-configuration was successful",
-        "reauth_successful": "Re-authentication was successful"
       }
+    }
+  },
+  "exceptions": {
+    "api_error": {
+      "message": "API error: {message}."
+    },
+    "cannot_connect": {
+      "message": "Cannot connect to the server: {message}."
+    },
+    "file_not_found": {
+      "message": "File does not exist: {file_path}."
+    },
+    "invalid_auth": {
+      "message": "Invalid authentication: {message}."
+    },
+    "json_parse_error": {
+      "message": "Unexpected tool argument response: {message}."
+    },
+    "quota_exceeded": {
+      "message": "Your account or API key has insufficient credits: {message}."
+    },
+    "timeout": {
+      "message": "Connection timed out: {message}."
+    },
+    "unsupported_file_type": {
+      "message": "Only images and PDF are supported by the OpenAI API, {file_path} is not an image file or PDF."
     }
   }
 }

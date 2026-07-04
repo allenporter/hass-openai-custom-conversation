@@ -108,9 +108,13 @@ async def test_generate_structured_data(
     assert mock_completion.call_args.kwargs["response_format"] == {
         "type": "json_schema",
         "json_schema": {
-            "type": "object",
-            "properties": {"value": {"type": "string"}},
-            "required": [],
+            "name": "Test Task",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": [],
+            },
         },
     }
 

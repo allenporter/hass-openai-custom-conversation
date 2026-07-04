@@ -10,25 +10,30 @@ import mimetypes
 from pathlib import Path
 from typing import Any, Literal, cast
 
-import openai
+from openai import AsyncOpenAI
 from openai._streaming import AsyncStream
-from openai._types import NOT_GIVEN
+from openai._types import Omit
 from openai.types.chat import (
-    ChatCompletionChunk,
-    ChatCompletionMessageParam,
-    ChatCompletionMessageFunctionToolCall,
+    ChatCompletion,
     ChatCompletionAssistantMessageParam,
+    ChatCompletionChunk,
+    ChatCompletionContentPartParam,
+    ChatCompletionContentPartTextParam,
+    ChatCompletionFunctionToolParam,
     ChatCompletionMessage,
+    ChatCompletionMessageFunctionToolCall,
+    ChatCompletionMessageParam,
     ChatCompletionMessageToolCallParam,
     ChatCompletionSystemMessageParam,
     ChatCompletionToolMessageParam,
-    ChatCompletionToolParam,
     ChatCompletionUserMessageParam,
 )
 from openai.types.chat.chat_completion_message_function_tool_call_param import Function
-from openai.types.shared_params import FunctionDefinition
+from openai.types.shared_params import FunctionDefinition, ResponseFormatJSONSchema
 import voluptuous as vol
 from voluptuous_openapi import convert
+
+from .openai_client import api_error_handler
 
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
@@ -60,7 +65,7 @@ _LOGGER = logging.getLogger(__name__)
 def _format_tool(
     tool: llm.Tool,
     custom_serializer: Callable[[Any], Any] | None,
-) -> ChatCompletionToolParam:
+) -> ChatCompletionFunctionToolParam:
     """Format tool specification."""
     tool_spec = FunctionDefinition(
         name=tool.name,
@@ -68,15 +73,23 @@ def _format_tool(
     )
     if tool.description:
         tool_spec["description"] = tool.description
-    return ChatCompletionToolParam(type="function", function=tool_spec)
+    return ChatCompletionFunctionToolParam(type="function", function=tool_spec)
 
 
 def _format_structured_output(
-    structure: vol.Schema, llm_api: llm.APIInstance | None
-) -> dict[str, Any]:
+    name: str, structure: vol.Schema, llm_api: llm.APIInstance | None
+) -> ResponseFormatJSONSchema:
     """Format structured output specification."""
-    return convert(
+    schema = convert(
         structure, custom_serializer=llm_api.custom_serializer if llm_api else None
+    )
+    return ResponseFormatJSONSchema(
+        type="json_schema",
+        json_schema={
+            "name": name,
+            "strict": True,
+            "schema": cast(dict[str, object], schema),
+        },
     )
 
 
@@ -128,7 +141,11 @@ def _decode_tool_arguments(arguments: str) -> Any:
     try:
         return json.loads(arguments)
     except json.JSONDecodeError as err:
-        raise HomeAssistantError(f"Unexpected tool argument response: {err}") from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="json_parse_error",
+            translation_placeholders={"message": str(err)},
+        ) from err
 
 
 async def _transform_response(
@@ -197,9 +214,12 @@ async def _transform_stream(
 ) -> AsyncGenerator[conversation.AssistantContentDeltaDict]:
     """Transform an OpenAI delta stream into HA format."""
     current_tool_call: dict[str, Any] | None = None
+    yielded_role = False
 
     async for chunk in result:
         LOGGER.debug("Received chunk: %s", chunk)
+        if not chunk.choices:
+            continue
         choice = chunk.choices[0]
 
         if choice.finish_reason:
@@ -209,7 +229,9 @@ async def _transform_stream(
                         llm.ToolInput(
                             id=current_tool_call["id"],
                             tool_name=current_tool_call["tool_name"],
-                            tool_args=json.loads(current_tool_call["tool_args"])
+                            tool_args=_decode_tool_arguments(
+                                current_tool_call["tool_args"]
+                            )
                             if current_tool_call["tool_args"]
                             else {},
                         )
@@ -217,18 +239,18 @@ async def _transform_stream(
                 }
             break
 
-        delta = chunk.choices[0].delta
+        delta = choice.delta
 
         # We can yield delta messages not continuing or starting tool calls
         if current_tool_call is None and not delta.tool_calls:
-            yield cast(
-                conversation.AssistantContentDeltaDict,
-                {
-                    key: value
-                    for key in ("role", "content")
-                    if (value := getattr(delta, key)) is not None
-                },
-            )
+            yield_dict: conversation.AssistantContentDeltaDict = {}
+            if not yielded_role and delta.role == "assistant":
+                yield_dict["role"] = "assistant"
+                yielded_role = True
+            if delta.content is not None:
+                yield_dict["content"] = delta.content
+            if yield_dict:
+                yield yield_dict
             continue
 
         # When doing tool calls, we should always have a tool call
@@ -251,7 +273,9 @@ async def _transform_stream(
                     llm.ToolInput(
                         id=current_tool_call["id"],
                         tool_name=current_tool_call["tool_name"],
-                        tool_args=json.loads(current_tool_call["tool_args"]),
+                        tool_args=_decode_tool_arguments(
+                            current_tool_call["tool_args"]
+                        ),
                     )
                 ]
             }
@@ -292,7 +316,7 @@ class CustomOpenAIBaseLLMEntity(Entity):
         """Generate an answer for the chat log."""
         options = self.subentry.data
 
-        tools: list[ChatCompletionToolParam] | None = None
+        tools: list[ChatCompletionFunctionToolParam] | None = None
         if chat_log.llm_api:
             tools = [
                 _format_tool(tool, chat_log.llm_api.custom_serializer)
@@ -306,13 +330,11 @@ class CustomOpenAIBaseLLMEntity(Entity):
             if (m := _convert_content_to_chat_message(content))
         ]
 
-        response_format: dict[str, Any] | None = None
+        response_format: ResponseFormatJSONSchema | Omit = Omit()
         if structure and structure_name:
-            schema = _format_structured_output(structure, chat_log.llm_api)
-            response_format = {
-                "type": "json_schema",
-                "json_schema": schema,
-            }
+            response_format = _format_structured_output(
+                structure_name, structure, chat_log.llm_api
+            )
 
         # Handle attachments by adding them to the last user message
         last_content = chat_log.content[-1]
@@ -331,51 +353,55 @@ class CustomOpenAIBaseLLMEntity(Entity):
                     current_content = user_msg.get("content")
                     if isinstance(current_content, str):
                         # Convert string content to list with text and files
-                        user_msg["content"] = cast(
-                            Any,
-                            [
-                                {"type": "text", "text": current_content},
-                                *files,
-                            ],
-                        )
+                        user_msg["content"] = [
+                            ChatCompletionContentPartTextParam(
+                                type="text", text=current_content
+                            ),
+                            *files,
+                        ]
                     break
 
-        client = self.entry.runtime_data
+        client: AsyncOpenAI = self.entry.runtime_data
+        streaming = bool(
+            self.entry.data.get(CONF_STREAMING, options.get(CONF_STREAMING, False))
+        )
 
         for _iteration in range(MAX_TOOL_ITERATIONS):
-            try:
+            with api_error_handler():
                 result = await client.chat.completions.create(
                     model=model,
                     messages=messages,
-                    tools=tools or NOT_GIVEN,
+                    tools=tools or Omit(),
                     response_format=response_format,
-                    max_tokens=options.get(CONF_MAX_TOKENS, RECOMMENDED_MAX_TOKENS),
-                    top_p=options.get(CONF_TOP_P, RECOMMENDED_TOP_P),
-                    temperature=options.get(CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE),
+                    max_tokens=cast(
+                        int, options.get(CONF_MAX_TOKENS, RECOMMENDED_MAX_TOKENS)
+                    ),
+                    top_p=cast(float, options.get(CONF_TOP_P, RECOMMENDED_TOP_P)),
+                    temperature=cast(
+                        float, options.get(CONF_TEMPERATURE, RECOMMENDED_TEMPERATURE)
+                    ),
                     user=chat_log.conversation_id,
-                    stream=options.get(CONF_STREAMING),
+                    stream=cast(Any, streaming),
                 )
-            except openai.OpenAIError as err:
-                LOGGER.error("Error talking to API: %s", err)
-                raise HomeAssistantError("Error talking to API") from err
 
             convert_message: Callable[[Any], Any]
-            convert_stream: Callable[
-                [Any], AsyncGenerator[conversation.AssistantContentDeltaDict]
-            ]
-            if options.get(CONF_STREAMING):
+            async_generator: AsyncGenerator[conversation.AssistantContentDeltaDict]
+            if streaming:
                 convert_message = _convert_content_to_param
-                convert_stream = _transform_stream
+                async_generator = _transform_stream(
+                    cast(AsyncStream[ChatCompletionChunk], result)
+                )
             else:
                 convert_message = _convert_content_to_chat_message
-                convert_stream = _transform_response
-                result = result.choices[0].message
+                async_generator = _transform_response(
+                    cast(ChatCompletion, result).choices[0].message
+                )
 
             messages.extend(
                 [
                     msg
                     async for content in chat_log.async_add_delta_content_stream(
-                        self.entity_id, convert_stream(result)
+                        self.entity_id, async_generator
                     )
                     if (msg := convert_message(content))
                 ]
@@ -387,7 +413,7 @@ class CustomOpenAIBaseLLMEntity(Entity):
 
 async def async_prepare_files_for_prompt(
     hass: HomeAssistant, files: list[Path]
-) -> list[dict[str, Any]]:
+) -> list[ChatCompletionContentPartParam]:
     """Prepare files for OpenAI-compatible API.
 
     Caller needs to ensure that the files are allowed.
@@ -397,19 +423,24 @@ async def async_prepare_files_for_prompt(
         """Guess the file type based on the file extension."""
         return mimetypes.guess_type(str(file_path))
 
-    def append_files_to_content() -> list[dict[str, Any]]:
-        content: list[dict[str, Any]] = []
+    def append_files_to_content() -> list[ChatCompletionContentPartParam]:
+        content: list[ChatCompletionContentPartParam] = []
 
         for file_path in files:
             if not file_path.exists():
-                raise HomeAssistantError(f"`{file_path}` does not exist")
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="file_not_found",
+                    translation_placeholders={"file_path": str(file_path)},
+                )
 
             mime_type, _ = guess_file_type(file_path)
 
             if not mime_type or not mime_type.startswith(("image/", "application/pdf")):
                 raise HomeAssistantError(
-                    "Only images and PDF are supported by the OpenAI API, "
-                    f"`{file_path}` is not an image file or PDF"
+                    translation_domain=DOMAIN,
+                    translation_key="unsupported_file_type",
+                    translation_placeholders={"file_path": str(file_path)},
                 )
 
             base64_file = base64.b64encode(file_path.read_bytes()).decode("utf-8")

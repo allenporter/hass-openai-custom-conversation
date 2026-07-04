@@ -143,7 +143,7 @@ async def test_config_flow_fail_completion(
     await hass.async_block_till_done()
 
     assert result.get("type") is FlowResultType.FORM
-    assert result.get("errors") == {"base": "cannot_connect"}
+    assert result.get("errors") == {"base": "api_error"}
 
     assert len(mock_setup.mock_calls) == 0
 
