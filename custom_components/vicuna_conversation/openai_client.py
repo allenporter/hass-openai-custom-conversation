@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator, Mapping
+from contextlib import contextmanager
 import logging
-from typing import Any, Mapping, cast
+from typing import Any, cast
 
 import openai
 from openai._streaming import AsyncStream
@@ -15,10 +17,12 @@ from openai.types.chat import (
 
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
     CONF_BASE_URL,
+    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,12 +51,12 @@ async def async_create_client(
 
 async def async_list_models(client: openai.AsyncOpenAI) -> list[str]:
     """Return a list of models supported by the client."""
-
     models = []
-    async for model in client.with_options(timeout=_TIMEOUT).models.list():
-        models.append(model.id)
-        if len(models) >= _MAX_MODELS:
-            break
+    with api_error_handler():
+        async for model in client.with_options(timeout=_TIMEOUT).models.list():
+            models.append(model.id)
+            if len(models) >= _MAX_MODELS:
+                break
     return models
 
 
@@ -77,9 +81,9 @@ async def async_validate_completions(
     client: openai.AsyncOpenAI,
     model: str,
     stream: bool = False,
-) -> bool:
+) -> None:
     """Validate that we can speak to the model over the completions API."""
-    try:
+    with api_error_handler():
         result = await client.chat.completions.create(
             model=model,
             messages=_TEST_MESSAGES,
@@ -87,19 +91,79 @@ async def async_validate_completions(
             max_tokens=_TEST_MAX_TOKENS,
             stream=stream,
         )
-    except openai.OpenAIError as err:
-        _LOGGER.info("Error validating model %s (stream=%s): %s", model, stream, err)
-        # Can't talk to the model either because it doesn't support the model, stream, etc
-        return False
 
-    if stream:
-        try:
+        if stream:
             stream_result = cast(AsyncStream[ChatCompletionChunk], result)
             async for event in stream_result:
+                if not event.choices:
+                    continue
                 if event.choices[0].finish_reason is not None:
                     continue
-        except openai.OpenAIError as err:
-            _LOGGER.error("Error streaming completion result: %s", err)
-            return False
 
-    return True
+
+def _extract_error_message(err: openai.APIStatusError) -> str:
+    """Extract a clean error message from an APIStatusError response or message."""
+    error_message = ""
+    if err.response is not None:
+        try:
+            json_data = err.response.json()
+            if isinstance(json_data, dict) and "error" in json_data:
+                error_message = json_data["error"].get("message") or ""
+        except ValueError:
+            pass
+    return error_message or err.message or str(err)
+
+
+@contextmanager
+def api_error_handler() -> Generator[None]:
+    """Context manager to handle API errors and translate them to HomeAssistantErrors."""
+    try:
+        yield
+    except openai.APITimeoutError as err:
+        _LOGGER.error("Timeout talking to API: %s", err)
+        error_message = err.message or str(err)
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="timeout",
+            translation_placeholders={"message": error_message},
+        ) from err
+    except openai.APIConnectionError as err:
+        _LOGGER.error("Connection error talking to API: %s", err)
+        error_message = err.message or str(err)
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="cannot_connect",
+            translation_placeholders={"message": error_message},
+        ) from err
+    except openai.AuthenticationError as err:
+        _LOGGER.error("Authentication error talking to API: %s", err)
+        error_message = _extract_error_message(err)
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="invalid_auth",
+            translation_placeholders={"message": error_message},
+        ) from err
+    except openai.APIStatusError as err:
+        _LOGGER.error("Status error talking to API: %s", err)
+        error_message = _extract_error_message(err)
+
+        if err.status_code == 402:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="quota_exceeded",
+                translation_placeholders={"message": error_message},
+            ) from err
+
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="api_error",
+            translation_placeholders={"message": error_message},
+        ) from err
+    except openai.OpenAIError as err:
+        _LOGGER.error("Generic error talking to API: %s", err)
+        error_message = getattr(err, "message", None) or str(err)
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="api_error",
+            translation_placeholders={"message": error_message},
+        ) from err

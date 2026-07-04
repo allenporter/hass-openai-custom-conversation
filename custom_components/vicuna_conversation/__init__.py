@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from types import MappingProxyType
 
-import openai
+
 
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry, ConfigType
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    HomeAssistantError,
+)
 from homeassistant.const import Platform, CONF_API_KEY
 from homeassistant.helpers import (
     device_registry as dr,
@@ -47,11 +51,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         client = await async_create_client(hass, entry.data)
         await async_list_models(client)
-    except openai.AuthenticationError as err:
-        _LOGGER.error("Invalid API key: %s", err)
-        return False
-    except openai.OpenAIError as err:
-        raise ConfigEntryNotReady(err) from err
+    except HomeAssistantError as err:
+        if err.translation_key == "invalid_auth":
+            raise ConfigEntryAuthFailed(
+                translation_domain=err.translation_domain,
+                translation_key=err.translation_key,
+                translation_placeholders=err.translation_placeholders,
+            ) from err
+        raise ConfigEntryNotReady(
+            translation_domain=err.translation_domain,
+            translation_key=err.translation_key,
+            translation_placeholders=err.translation_placeholders,
+        ) from err
 
     entry.runtime_data = client
 

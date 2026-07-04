@@ -16,6 +16,7 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
@@ -116,10 +117,9 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             try:
                 self.client = await async_create_client(self.hass, user_input)
                 self.models = await async_list_models(self.client)
-            except openai.APIConnectionError:
-                errors["base"] = "cannot_connect"
-            except openai.AuthenticationError:
-                errors["base"] = "invalid_api_key"
+            except HomeAssistantError as err:
+                LOGGER.error("Connection validation failed: %s", err)
+                errors["base"] = err.translation_key or "unknown"
             except Exception:  # pylint: disable=broad-except
                 LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -141,19 +141,26 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             model = user_input[CONF_CHAT_MODEL]
-            success = await async_validate_completions(
-                self.client,
-                model=model,
-                stream=False,
-            )
-            if not success:
-                errors["base"] = "cannot_connect"
-            else:
-                stream_support = await async_validate_completions(
+            try:
+                await async_validate_completions(
                     self.client,
                     model=model,
-                    stream=True,
+                    stream=False,
                 )
+            except HomeAssistantError as err:
+                LOGGER.error("Model completion validation failed: %s", err)
+                errors["base"] = err.translation_key or "unknown"
+            else:
+                try:
+                    await async_validate_completions(
+                        self.client,
+                        model=model,
+                        stream=True,
+                    )
+                    stream_support = True
+                except HomeAssistantError:
+                    stream_support = False
+
                 base_options = {
                     **user_input,
                     CONF_STREAMING: stream_support,
@@ -272,18 +279,42 @@ class ConversationSubentryFlowHandler(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         """Manage initial options."""
         # abort if entry is not loaded
-        if self._get_entry().state != ConfigEntryState.LOADED:
+        if self._get_entry().state is not ConfigEntryState.LOADED:
             return self.async_abort(reason="entry_not_loaded")
 
         options = self.options
 
         if user_input is not None:
             model = user_input[CONF_CHAT_MODEL]
-            stream_support = await async_validate_completions(
-                self._openai_client,
-                model=model,
-                stream=True,
-            )
+            try:
+                await async_validate_completions(
+                    self._openai_client,
+                    model=model,
+                    stream=False,
+                )
+            except HomeAssistantError as err:
+                LOGGER.error("Model completion validation failed: %s", err)
+                models = await self._get_models()
+                schema = openai_config_option_schema(
+                    self.hass, self._subentry_type, self._is_new, options, models
+                )
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self.add_suggested_values_to_schema(
+                        vol.Schema(schema), user_input
+                    ),
+                    errors={"base": err.translation_key or "unknown"},
+                )
+
+            try:
+                await async_validate_completions(
+                    self._openai_client,
+                    model=model,
+                    stream=True,
+                )
+                stream_support = True
+            except HomeAssistantError:
+                stream_support = False
             user_input[CONF_STREAMING] = stream_support
             if user_input[CONF_RECOMMENDED] == self.last_rendered_recommended:
                 if self._is_new:
