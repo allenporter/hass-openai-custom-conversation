@@ -3,7 +3,6 @@
 import logging
 from typing import Final
 
-
 DOMAIN = "vicuna_conversation"
 LOGGER = logging.getLogger(__package__)
 

@@ -11,7 +11,7 @@
     },
   ],
   pip_requirements: {
-    managerFilePatterns: ["/requirements_dev.txt/"],
+    fileMatch: ["requirements_dev.txt"],
   },
   "pre-commit": {
     enabled: true,

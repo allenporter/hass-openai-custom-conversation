@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import base64
-from collections.abc import AsyncGenerator, Callable
 import json
 import logging
 import mimetypes
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import voluptuous as vol
+from homeassistant.components import conversation
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import llm
+from homeassistant.helpers.entity import Entity
 from openai import AsyncOpenAI
 from openai._streaming import AsyncStream
 from openai._types import Omit
@@ -30,31 +38,22 @@ from openai.types.chat import (
 )
 from openai.types.chat.chat_completion_message_function_tool_call_param import Function
 from openai.types.shared_params import FunctionDefinition, ResponseFormatJSONSchema
-import voluptuous as vol
 from voluptuous_openapi import convert
-
-from .openai_client import api_error_handler
-
-from homeassistant.components import conversation
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import device_registry as dr, llm
-from homeassistant.helpers.entity import Entity
 
 from .const import (
     CONF_CHAT_MODEL,
     CONF_MAX_TOKENS,
+    CONF_STREAMING,
     CONF_TEMPERATURE,
     CONF_TOP_P,
-    CONF_STREAMING,
     DOMAIN,
+    LOGGER,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
     RECOMMENDED_TEMPERATURE,
     RECOMMENDED_TOP_P,
-    LOGGER,
 )
+from .openai_client import api_error_handler
 
 # Max number of back and forth with the LLM to generate a response
 MAX_TOOL_ITERATIONS = 10

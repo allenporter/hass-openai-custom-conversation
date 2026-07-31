@@ -1,35 +1,30 @@
 """Fixtures for the custom component."""
 
-from collections.abc import Generator
-from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
-import pathlib
 import logging
+import pathlib
+from collections.abc import AsyncGenerator, Generator
+from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from homeassistant.components import conversation
+from homeassistant.const import CONF_LLM_HASS_API, Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import chat_session, llm
+from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+)
 from syrupy import SnapshotAssertion
 from syrupy.extensions.amber import AmberSnapshotExtension
 from syrupy.location import PyTestLocation
 
-from homeassistant.const import CONF_LLM_HASS_API, Platform
-from homeassistant.helpers import llm
-from homeassistant.core import HomeAssistant
-from homeassistant.setup import async_setup_component
-from homeassistant.components import conversation
-from homeassistant.helpers import chat_session
-
-from pytest_homeassistant_custom_component.common import (
-    MockConfigEntry,
-)
-
 from custom_components.vicuna_conversation.const import (
-    DOMAIN,
-    DEFAULT_CONVERSATION_NAME,
     DEFAULT_AI_TASK_NAME,
+    DEFAULT_CONVERSATION_NAME,
+    DOMAIN,
 )
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,7 +57,7 @@ def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(
     enable_custom_integrations: None,
-) -> Generator[None, None, None]:
+) -> Generator[None]:
     """Enable custom integration."""
     _ = enable_custom_integrations  # unused
     yield

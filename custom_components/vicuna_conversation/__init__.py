@@ -5,20 +5,22 @@ from __future__ import annotations
 import logging
 from types import MappingProxyType
 
-
-
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry, ConfigType
+from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
     HomeAssistantError,
 )
-from homeassistant.const import Platform, CONF_API_KEY
+from homeassistant.helpers import (
+    config_validation as cv,
+)
 from homeassistant.helpers import (
     device_registry as dr,
+)
+from homeassistant.helpers import (
     entity_registry as er,
-    config_validation as cv,
 )
 
 from .const import (
@@ -31,7 +33,7 @@ from .const import (
 from .openai_client import async_create_client, async_list_models
 
 __all__ = [
-    DOMAIN,
+    "DOMAIN",
 ]
 
 _LOGGER = logging.getLogger(__name__)

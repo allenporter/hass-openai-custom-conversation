@@ -18,7 +18,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/ruff-action@v4.1.0
+      - name: Validate Renovate configuration
+        run: |
+          npx --package=renovate@38 -- renovate-config-validator .github/renovate.json5
       - uses: codespell-project/actions-codespell@v2.2
         with:
           check_hidden: false
@@ -30,6 +32,8 @@ jobs:
           cache-dependency-glob: "requirements_dev.txt"
           activate-environment: true
       - name: Install dependencies
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
         run: |
           uv pip install -r requirements_dev.txt --prerelease=allow
 
@@ -39,7 +43,7 @@ jobs:
 
       - name: Run Ruff Format
         run: |
-          ruff format .
+          ruff format --check .
 
       - name: Static typing with ty
         run: |

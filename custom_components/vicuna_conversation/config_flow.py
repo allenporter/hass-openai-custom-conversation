@@ -7,51 +7,48 @@ from typing import Any, cast
 
 import openai
 import voluptuous as vol
-
 from homeassistant.config_entries import (
     ConfigEntry,
     ConfigEntryState,
-    ConfigSubentryFlow,
-    SubentryFlowResult,
     ConfigFlow,
     ConfigFlowResult,
+    ConfigSubentryFlow,
+    SubentryFlowResult,
 )
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API, CONF_NAME
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import llm
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
-    TemplateSelector,
-    SelectSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
-)
-from homeassistant.helpers import llm
-from homeassistant.helpers.selector import (
-    SelectOptionDict,
+    SelectSelectorMode,
+    TemplateSelector,
 )
 
 from .const import (
+    CONF_BASE_URL,
     CONF_CHAT_MODEL,
     CONF_MAX_TOKENS,
     CONF_PROMPT,
     CONF_RECOMMENDED,
+    CONF_STREAMING,
     CONF_TEMPERATURE,
     CONF_TOP_P,
-    CONF_BASE_URL,
-    CONF_STREAMING,
+    DEFAULT_AI_TASK_NAME,
     DEFAULT_API_KEY,
     DEFAULT_BASE_URL,
     DEFAULT_CONVERSATION_NAME,
-    DEFAULT_AI_TASK_NAME,
     DOMAIN,
+    LOGGER,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_CHAT_MODELS,
     RECOMMENDED_MAX_TOKENS,
     RECOMMENDED_TEMPERATURE,
     RECOMMENDED_TOP_P,
-    LOGGER,
 )
 from .openai_client import (
     async_create_client,
@@ -120,7 +117,7 @@ class OpenAIConfigFlow(ConfigFlow, domain=DOMAIN):
             except HomeAssistantError as err:
                 LOGGER.error("Connection validation failed: %s", err)
                 errors["base"] = err.translation_key or "unknown"
-            except Exception:  # pylint: disable=broad-except
+            except Exception:  # noqa: BLE001  # pylint: disable=broad-except
                 LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:

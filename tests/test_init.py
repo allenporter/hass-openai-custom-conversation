@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Generator
-from unittest.mock import patch, Mock
+from collections.abc import Generator
 from typing import Any
+from unittest.mock import Mock, patch
 
 import pytest
-
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import (
     device_registry as dr,
+)
+from homeassistant.helpers import (
     entity_registry as er,
 )
-from homeassistant.config_entries import ConfigEntryState
-
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
@@ -199,13 +199,13 @@ async def test_migration_from_v1_to_v2_with_multiple_keys(
         assert entry.version == 2
         assert not entry.options
         assert len(entry.subentries) == 2
-        subentry = list(entry.subentries.values())[0]
+        subentry = next(iter(entry.subentries.values()))
         assert subentry.subentry_type == "conversation"
         assert subentry.data == options
         assert subentry.title == f"ChatGPT {idx + 1}"
 
         dev = device_registry.async_get_device(
-            identifiers={(DOMAIN, list(entry.subentries.values())[0].subentry_id)}
+            identifiers={(DOMAIN, next(iter(entry.subentries.values())).subentry_id)}
         )
         assert dev is not None
         assert dev.config_entries == {entry.entry_id}

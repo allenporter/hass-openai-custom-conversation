@@ -2,23 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
-import logging
 from typing import Any, cast
 
 import openai
+from homeassistant.const import CONF_API_KEY
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.httpx_client import get_async_client
 from openai._streaming import AsyncStream
 from openai.types.chat import (
     ChatCompletionChunk,
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
-
-from homeassistant.const import CONF_API_KEY
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import (
     CONF_BASE_URL,

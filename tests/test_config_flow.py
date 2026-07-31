@@ -1,36 +1,34 @@
 """Tests for the config flow."""
 
-from typing import Generator, Any
-from unittest.mock import patch, Mock
+from collections.abc import Generator
+from typing import Any
+from unittest.mock import Mock, patch
 
-import pytest
 import openai
-
+import pytest
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.const import CONF_API_KEY, CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_LLM_HASS_API, CONF_API_KEY
-
-
+from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
 
+from custom_components.vicuna_conversation.config_flow import RECOMMENDED_OPTIONS
 from custom_components.vicuna_conversation.const import (
     CONF_CHAT_MODEL,
     CONF_MAX_TOKENS,
     CONF_PROMPT,
     CONF_RECOMMENDED,
+    CONF_STREAMING,
     CONF_TEMPERATURE,
     CONF_TOP_P,
-    CONF_STREAMING,
+    DEFAULT_CONVERSATION_NAME,
     DOMAIN,
     RECOMMENDED_CHAT_MODEL,
     RECOMMENDED_MAX_TOKENS,
     RECOMMENDED_TOP_P,
-    DEFAULT_CONVERSATION_NAME,
 )
-from custom_components.vicuna_conversation.config_flow import RECOMMENDED_OPTIONS
 
 
 @pytest.fixture(name="mock_setup")
@@ -439,12 +437,10 @@ async def test_subentry_switching(
     assert subentry_flow["step_id"] == "init"
 
     current_options = config_entry_options
-    i = 0
-    for step_options in new_options:
+    for i, step_options in enumerate(new_options):
         assert subentry_flow["type"] == FlowResultType.FORM, (
             f"Expected {i} form, got {subentry_flow}"
         )
-        i += 1
 
         # Test that current options are showed as suggested values:
         for key in subentry_flow["data_schema"].schema:
