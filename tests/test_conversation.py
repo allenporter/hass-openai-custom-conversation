@@ -1,32 +1,33 @@
 """Tests for the vicuna_conversation component."""
 
-from typing import Generator
-from unittest.mock import AsyncMock, patch, Mock
+from collections.abc import Generator
+from unittest.mock import AsyncMock, Mock, patch
 
-from freezegun import freeze_time
-from openai.types.chat import ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice, ChoiceDelta
 import pytest
-from syrupy.assertion import SnapshotAssertion
+from freezegun import freeze_time
+from homeassistant.components import conversation
+from homeassistant.const import CONF_LLM_HASS_API
+from homeassistant.core import Context, HomeAssistant
+from homeassistant.helpers import intent
+from homeassistant.setup import async_setup_component
+from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion import ChatCompletion, Choice
+from openai.types.chat.chat_completion_chunk import Choice as ChunkChoice
+from openai.types.chat.chat_completion_chunk import ChoiceDelta
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
     Function,
 )
 from openai.types.completion_usage import CompletionUsage
-
-from homeassistant.const import CONF_LLM_HASS_API
-from custom_components.vicuna_conversation.const import CONF_STREAMING
-from homeassistant.core import Context, HomeAssistant
-from homeassistant.helpers import intent
-from homeassistant.components import conversation
-from homeassistant.setup import async_setup_component
-
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
-from .conftest import MockChatLog, ASSIST_OPTIONS
+from syrupy.assertion import SnapshotAssertion
+
+from custom_components.vicuna_conversation.const import CONF_STREAMING
+
+from .conftest import ASSIST_OPTIONS, MockChatLog
 
 
 @pytest.fixture(autouse=True)
@@ -104,7 +105,7 @@ async def test_conversation_entity(
 @pytest.mark.parametrize(("config_entry_options"), [ASSIST_OPTIONS])
 async def test_function_call(
     hass: HomeAssistant,
-    mock_chat_log: MockChatLog,  # noqa: F811
+    mock_chat_log: MockChatLog,
     mock_config_entry: MockConfigEntry,
     snapshot: SnapshotAssertion,
 ) -> None:
@@ -204,7 +205,7 @@ async def test_function_call(
 )
 async def test_function_exception(
     hass: HomeAssistant,
-    mock_chat_log: MockChatLog,  # noqa: F811
+    mock_chat_log: MockChatLog,
     mock_config_entry: MockConfigEntry,
     tool_arguments: str,
     snapshot: SnapshotAssertion,

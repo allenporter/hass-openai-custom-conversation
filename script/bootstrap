@@ -22,7 +22,7 @@ fi
 
 echo "==> Installing pre-commit hooks..."
 if command -v uv >/dev/null 2>&1; then
-  uv run pre-commit install
+  uv run --no-project pre-commit install
 else
   pre-commit install
 fi

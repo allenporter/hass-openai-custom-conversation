@@ -1,20 +1,16 @@
 """Test the AI Task entity."""
 
-from unittest.mock import AsyncMock
 import json
+from unittest.mock import AsyncMock
 
 import pytest
+import voluptuous as vol
+from homeassistant.components import ai_task
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
 from openai.types.chat.chat_completion import ChatCompletion, Choice
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
 from openai.types.completion_usage import CompletionUsage
-
-
-from homeassistant.core import HomeAssistant
-from homeassistant.const import Platform
-from homeassistant.components import ai_task
-import voluptuous as vol
-
-
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )

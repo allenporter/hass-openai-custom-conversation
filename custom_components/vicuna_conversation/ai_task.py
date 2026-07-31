@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from json import JSONDecodeError
 import logging
+from json import JSONDecodeError
 
 from homeassistant.components import ai_task, conversation
 from homeassistant.config_entries import ConfigEntry
