@@ -1,21 +1,17 @@
 # Home Assistant Open AI Custom Conversation Agent
 
+> [!WARNING]
+>
+> **This custom integration is obsolete.** Home Assistant Core now includes built-in support for any OpenAI-compatible API server via the official [**llama.cpp integration**](https://www.home-assistant.io/integrations/llama_cpp/).
+>
+> Please use the official core integrations instead:
+>
+> - **OpenAI-compatible servers (llama.cpp, llama-cpp-python, vLLM, DeepSeek, etc.)**: Use the built-in [llama.cpp integration](https://www.home-assistant.io/integrations/llama_cpp/).
+> - **Ollama**: Use the built-in [Ollama integration](https://www.home-assistant.io/integrations/ollama/).
+> - **OpenRouter**: Use the built-in [OpenRouter integration](https://www.home-assistant.io/integrations/open_router/).
+
 The Open AI Custom Conversation Agent adds a Home Assistant conversation agent
 powered by any LLM using the Open AI chat completions API.
-
-The goals of this integration are to:
-
-- Integrate custom servers that implement the Open AI chat completions API
-- Stay compatible and current with Home Assistant through automated tests
-- Use latest Home Assistant internal APIs to get the latest features (e.g. MCP, Assist API)
-- Use standard Home Assistant prompts to get the latest [quality improvements](https://github.com/allenporter/home-assistant-datasets/tree/main/reports)
-
-This integration aims to avoid non-standard setups such as spawning
-subprocesses to run model servers, avoids customized by lower quality
-models, or tools/RAG that cannot be used with other integrations.
-
-Note: You should prefer using the [Ollama](https://www.home-assistant.io/integrations/ollama/)
-integration for the lowest friction way to use Local LLMs.
 
 ## Motivation
 
