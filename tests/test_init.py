@@ -103,12 +103,12 @@ async def test_migration_from_v1_to_v2(
     assert migrated_entity.unique_id == subentry.subentry_id
 
     # Check device migration
-    assert not device_registry.async_get_device(
-        identifiers={(DOMAIN, mock_config_entry.entry_id)}
+    assert not device_registry.async_get_device_by_identifier(
+        (DOMAIN, mock_config_entry.entry_id), mock_config_entry.entry_id
     )
     assert (
-        migrated_device := device_registry.async_get_device(
-            identifiers={(DOMAIN, subentry.subentry_id)}
+        migrated_device := device_registry.async_get_device_by_identifier(
+            (DOMAIN, subentry.subentry_id), mock_config_entry.entry_id
         )
     )
     assert migrated_device.identifiers == {(DOMAIN, subentry.subentry_id)}
@@ -185,7 +185,7 @@ async def test_migration_from_v1_to_v2_with_multiple_keys(
 
     # Run migration
     with patch(
-        "homeassistant.components.openai_conversation.async_setup_entry",
+        f"custom_components.{DOMAIN}.async_setup_entry",
         return_value=True,
     ):
         await hass.config_entries.async_setup(mock_config_entry.entry_id)
@@ -204,8 +204,8 @@ async def test_migration_from_v1_to_v2_with_multiple_keys(
         assert subentry.data == options
         assert subentry.title == f"ChatGPT {idx + 1}"
 
-        dev = device_registry.async_get_device(
-            identifiers={(DOMAIN, next(iter(entry.subentries.values())).subentry_id)}
+        dev = device_registry.async_get_device_by_identifier(
+            (DOMAIN, subentry.subentry_id), entry.entry_id
         )
         assert dev is not None
         assert dev.config_entries == {entry.entry_id}
@@ -278,7 +278,7 @@ async def test_migration_from_v1_to_v2_with_same_keys(
 
     # Run migration
     with patch(
-        "homeassistant.components.openai_conversation.async_setup_entry",
+        f"custom_components.{DOMAIN}.async_setup_entry",
         return_value=True,
     ):
         await hass.config_entries.async_setup(mock_config_entry.entry_id)
@@ -307,8 +307,8 @@ async def test_migration_from_v1_to_v2_with_same_keys(
         assert subentry.data == options
 
         # Check devices were migrated correctly
-        dev = device_registry.async_get_device(
-            identifiers={(DOMAIN, subentry.subentry_id)}
+        dev = device_registry.async_get_device_by_identifier(
+            (DOMAIN, subentry.subentry_id), mock_config_entry.entry_id
         )
         assert dev is not None
         assert dev.config_entries == {mock_config_entry.entry_id}
