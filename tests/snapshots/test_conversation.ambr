@@ -1,16 +1,66 @@
 # serializer version: 1
 # name: test_conversation_entity
   list([
-    UserContent(role='user', content='hello', attachments=None, created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc)),
-    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content='Hello, how can I help you?', thinking_content=None, tool_calls=None, native=None, created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc)),
+    UserContent(
+      attachments=None,
+      content='hello',
+      created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc),
+      role='user',
+    ),
+    AssistantContent(
+      agent_id='conversation.custom_openai_conversation',
+      content='Hello, how can I help you?',
+      created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc),
+      native=None,
+      role='assistant',
+      thinking_content=None,
+      tool_calls=None,
+    ),
   ])
 # ---
 # name: test_function_call[config_entry_options0]
   list([
-    UserContent(role='user', content='Please call the test function', attachments=None, created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc)),
-    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content=None, thinking_content=None, tool_calls=[ToolInput(tool_name='test_tool', tool_args={'param1': 'call1'}, id='call_call_1', external=False)], native=None, created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc)),
-    ToolResultContent(role='tool_result', agent_id='conversation.custom_openai_conversation', tool_call_id='call_call_1', tool_name='test_tool', tool_result='value1', created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc)),
-    AssistantContent(role='assistant', agent_id='conversation.custom_openai_conversation', content='I have successfully called the function', thinking_content=None, tool_calls=None, native=None, created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc)),
+    UserContent(
+      attachments=None,
+      content='Please call the test function',
+      created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc),
+      role='user',
+    ),
+    AssistantContent(
+      agent_id='conversation.custom_openai_conversation',
+      content=None,
+      created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc),
+      native=None,
+      role='assistant',
+      thinking_content=None,
+      tool_calls=list([
+        ToolInput(
+          external=False,
+          id='call_call_1',
+          tool_args=dict({
+            'param1': 'call1',
+          }),
+          tool_name='test_tool',
+        ),
+      ]),
+    ),
+    ToolResultContent(
+      agent_id='conversation.custom_openai_conversation',
+      created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc),
+      role='tool_result',
+      tool_call_id='call_call_1',
+      tool_name='test_tool',
+      tool_result='value1',
+    ),
+    AssistantContent(
+      agent_id='conversation.custom_openai_conversation',
+      content='I have successfully called the function',
+      created=HAFakeDatetime(2024, 5, 24, 12, 0, tzinfo=datetime.timezone.utc),
+      native=None,
+      role='assistant',
+      thinking_content=None,
+      tool_calls=None,
+    ),
   ])
 # ---
 # name: test_function_exception[-config_entry_options0]
